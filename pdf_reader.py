@@ -2,6 +2,13 @@
 create .env file at project level and create OPENAI_API_KEY also PINECONE_API_KEY
 example:- OPENAI_API_KEY="YOUR API KEY"
           PINECONE_API_KEY="YOUR API KEY"
+
+ create requirements.txt
+       pinecone
+       langchain
+       langchain_pinecone
+       dotenv
+  
 '''
 from pinecone import Pinecone
 from langchain.document_loaders import PyPDFDirectoryLoader
@@ -9,7 +16,6 @@ from langchain.text_splitter import CharacterTextSplitter
 from langchain_pinecone import PineconeVectorStore
 from langchain.embeddings.openai import OpenAIEmbeddings
 from langchain.chains.question_answering import load_qa_chain
-import google.generativeai as genai
 from langchain import OpenAI
 from dotenv import load_dotenv
 load_dotenv()
