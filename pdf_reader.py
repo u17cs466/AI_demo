@@ -1,13 +1,13 @@
 '''
-create .env file at project level and create OPENAI_API_KEY also PINECONE_API_KEY
+create .env file at project level and create OPENAI_API_KEY and PINECONE_API_KEY
 example:- OPENAI_API_KEY="YOUR API KEY"
           PINECONE_API_KEY="YOUR API KEY"
-
+         
  create requirements.txt
-       pinecone
-       langchain
-       langchain_pinecone
-       dotenv
+          streamlit
+          PyPDF2
+          python-dotenv
+          langchain
   
 '''
 from pinecone import Pinecone
