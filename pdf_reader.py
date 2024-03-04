@@ -11,13 +11,16 @@ example:- OPENAI_API_KEY="YOUR API KEY"
   
 '''
 from pinecone import Pinecone
+import streamlit as st
+from PyPDF2 import PdfReader
 from langchain.document_loaders import PyPDFDirectoryLoader
-from langchain.text_splitter import CharacterTextSplitter
+from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain_pinecone import PineconeVectorStore
 from langchain.embeddings.openai import OpenAIEmbeddings
 from langchain.chains.question_answering import load_qa_chain
 from langchain import OpenAI
 from dotenv import load_dotenv
+
 load_dotenv()
 
 import os
@@ -28,98 +31,70 @@ def read_doc(directory):
     file_loader=PyPDFDirectoryLoader(directory)
     documents=file_loader.load()
     return documents
+def get_pdf_text(pdf_docs):
+    text = ""
+    for pdf in pdf_docs:
+        pdf_reader = PdfReader(pdf)
+        for page in pdf_reader.pages:
+            text += page.extract_text()
+    return text
 
-doc=read_doc('pdf_dir/')
-
-
-def chunk_data(docs,chunk_size=800,chunk_overlap=50):
-    text_splitter = CharacterTextSplitter(chunk_size=chunk_size, chunk_overlap=chunk_overlap)
-    document=text_splitter.split_documents(docs)
-    return document
-
-
-documents=chunk_data(docs=doc)
-
-
-embeddings = OpenAIEmbeddings(openai_api_key=openai_key)
-# vector = embeddings.embed_query("good morning")
-# len(vector)
+def get_text_chunks(doc):
+    text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=80)
+    chunks = text_splitter.split_text(doc)
+    return chunks
 
 
-pc = Pinecone(
-        api_key=pinecone_key
-    )
-
-if 'langchainvector' not in pc.list_indexes().names():
-    pass
-pc._get_status("langchainvector")
-
-
-index_name = "langchainvector"
-pinecone_api_key=pinecone_key
-
-docsearch = PineconeVectorStore(pinecone_api_key=pinecone_key,embedding=embeddings,index_name=index_name)
-docsearch.add_documents(documents=documents)
+def get_vector_store(documents):
+    embeddings = OpenAIEmbeddings(openai_api_key=openai_key)
+    index_name = "langchainvector"    
+    docsearch = PineconeVectorStore(pinecone_api_key=pinecone_key,embedding=embeddings,index_name=index_name)
+    docsearch.add_texts(texts=documents)
+    return  docsearch
 
 
-llm = OpenAI(model="text-davinci-003",temperature=0.5,openai_api_key=openai_key)
-chain=load_qa_chain(llm=llm,chain_type="stuff")
+def get_conversational_chain():
+    llm = OpenAI(model="text-davinci-003",temperature=0.5,openai_api_key=openai_key)
+    chain=load_qa_chain(llm=llm,chain_type="stuff")
+    return chain
 
 def query_search(query,k=2):
-    matching_results= docsearch.similarity_search(query,k=k)
+    documents=get_vector_store()
+    matching_results= documents.similarity_search(query,k=k)
     return matching_results
 
-query = "how the agriculture is doing?"
-search_output = query_search(query)
-print(search_output)
 
-# def main():
-#     load_dotenv()
-#     st.set_page_config(page_title="Chat with multiple PDFs",
-#                        page_icon="logo1.png" )
-#     st.write(css, unsafe_allow_html=True)
+def user_input(user_question):
+    get_conversational_chain()
+    embeddings = OpenAIEmbeddings(openai_api_key=openai_key)
+    index_name = "langchainvector"    
+    docsearch = PineconeVectorStore(pinecone_api_key=pinecone_key,embedding=embeddings,index_name=index_name)
+    matching_results= docsearch.similarity_search(user_question,k=2)
+    st.write(matching_results)
+    
+    
+def main():
+    st.set_page_config("Chat PDF")
+    st.header("Chat with PDF using OpenAI💁")
 
-#     if "conversation" not in st.session_state:
-#         st.session_state.conversation = None
-#     if "chat_history" not in st.session_state:
-#         st.session_state.chat_history = None
-
-#     st.header("Chat with multiple PDFs :books:")
-#     user_question = st.text_input("Ask a question about your documents:")
-#     if user_question:
-#         handle_userinput(user_question)
-
-#     with st.sidebar:
-#         st.subheader("Your documents")
-#         pdf_docs = st.file_uploader(
-#             "Upload your PDFs here and click on 'Process'", accept_multiple_files=True)
-        
-
-#         if st.button("Process"):
-#             with st.spinner("Processing"):
-#                 # get pdf text
-#                 raw_text = get_pdf_text(pdf_docs)
-
-#                 # get the text chunks
-#                 text_chunks = get_text_chunks(raw_text)
-
-#                 # create vector store
-#                 vectorstore = get_vectorstore(text_chunks)
-
-#                 # create conversation chain
-#                 st.session_state.conversation = get_conversation_chain(
-#                     vectorstore)
-                
+    user_question = st.text_input("Ask a Question from the PDF Files")
 
 
-#                 # Clear chat history
-#                 st.session_state.chat_history = None
-                
-#     if st.session_state.conversation is not None:
-#         if st.session_state.chat_history is None:
-#             # Greet the user
-#             greeting = "Hello! How can I assist you with your documents?"
-#             st.write(bot_template.replace("{{MSG}}", greeting), unsafe_allow_html=True)
+    if user_question:
+        user_input(user_question)
+    
 
-# if __name__ == '__main__':
-#     main()
+    with st.sidebar:
+        st.title("Menu:")
+        pdf_docs = st.file_uploader("Upload your PDF Files and Click on the Submit & Process Button", accept_multiple_files=True)
+        if st.button("Submit & Process"):
+            with st.spinner("Processing..."):
+                raw_text = get_pdf_text(pdf_docs)
+                text_chunks = get_text_chunks(raw_text)
+                get_vector_store(text_chunks)
+                st.success("You Have Uploaded Your PDF to vectordb \n Please Ask your Query")
+
+
+
+if __name__ == "__main__":
+    main()
